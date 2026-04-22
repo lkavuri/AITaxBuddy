@@ -1,0 +1,46 @@
+[project]
+name = "aitaxbuddy"
+version = "0.1.0"
+description = "Open-source AI assistant for Australian tax guidance (general advice only)"
+authors = [{name = "AI Tax Buddy Contributors"}]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["tax", "australia", "ato", "ai", "agent", "langgraph", "langchain"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+]
+
+[project.scripts]
+taxbuddy = "aitaxbuddy.__main__:main"
+aitax = "aitaxbuddy.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/aitaxbuddy"
+Repository = "https://github.com/yourusername/aitaxbuddy"
+Documentation = "https://github.com/yourusername/aitaxbuddy/blob/main/README.md"
+"Bug Tracker" = "https://github.com/yourusername/aitaxbuddy/issues"
+Changelog = "https://github.com/yourusername/aitaxbuddy/blob/main/CHANGELOG.md"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
