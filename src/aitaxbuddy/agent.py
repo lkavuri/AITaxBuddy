@@ -4,15 +4,18 @@ import logging
 from typing import Annotated, TypedDict, Sequence
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+
+from langgraph.checkpoint.memory import MemorySaver
 
 from aitaxbuddy.config import settings
 from aitaxbuddy.observability import observability
 from aitaxbuddy.memory import TaxBuddyMemory
 from aitaxbuddy.guardrails import guardrails
+from aitaxbuddy.nudges import nudge_engine
 from aitaxbuddy.prompts import SYSTEM_PROMPT, USER_CONTEXT_TEMPLATE
 from aitaxbuddy.tools import (
     calculate_tax_bracket,
@@ -158,14 +161,11 @@ class TaxBuddyAgent:
                 memory_context = self.memory.get_context()
             
             # Prepare messages with system prompt
-            system_message = AIMessage(content=SYSTEM_PROMPT)
-            
-            # Add memory context if available
+            system_content = SYSTEM_PROMPT
             if memory_context and "No previous context" not in memory_context:
-                context_message = AIMessage(content=f"\n\n{memory_context}\n\n")
-                messages_with_context = [system_message, context_message] + list(messages)
-            else:
-                messages_with_context = [system_message] + list(messages)
+                system_content += f"\n\n{memory_context}"
+            system_message = SystemMessage(content=system_content)
+            messages_with_context = [system_message] + list(messages)
             
             # Call LLM
             response = llm_with_tools.invoke(messages_with_context)
@@ -200,7 +200,7 @@ class TaxBuddyAgent:
         workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", "end": END})
         workflow.add_edge("tools", "agent")
         
-        return workflow.compile()
+        return workflow.compile(checkpointer=MemorySaver())
     
     def process_message(self, user_message: str) -> str:
         """
@@ -228,15 +228,28 @@ class TaxBuddyAgent:
         else:
             filtered_message = user_message
         
+        # Fire proactive nudges before the LLM sees the message
+        nudges = nudge_engine.analyze_query(user_message)
+        if nudges:
+            nudge_text = "\n\n".join(nudge_engine.format_nudge(n) for n in nudges)
+            filtered_message = nudge_text + "\n\n---\n\n" + filtered_message
+
         # Create initial state
+        config = {"configurable": {"thread_id": self.user_id}}
         initial_state = {
             "messages": [HumanMessage(content=filtered_message)],
             "iterations": 0,
             "user_id": self.user_id,
         }
-        
+
+        # Build invoke kwargs — attach Langfuse callback if available
+        invoke_kwargs = {"config": config}
+        callback = observability.get_callback_handler()
+        if callback:
+            invoke_kwargs["config"]["callbacks"] = [callback]
+
         # Run the graph
-        final_state = self.graph.invoke(initial_state)
+        final_state = self.graph.invoke(initial_state, **invoke_kwargs)
         
         # Extract final response
         final_message = final_state["messages"][-1]

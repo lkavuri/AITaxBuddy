@@ -4,7 +4,7 @@ import logging
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from src.agent import create_agent
+from aitaxbuddy.agent import create_agent
 from tests.golden_dataset import GOLDEN_DATASET, evaluate_response
 
 logging.basicConfig(level=logging.WARNING)
